@@ -1,0 +1,129 @@
+species Object_2D =  
+ signature get_abscissa : Self -> float;
+ signature get_ordinate : Self -> float;
+ signature new_object : float -> float -> Self ;
+ signature move_object : Self -> float-> float -> Self;
+ signature distance : Self -> Self -> float;
+ signature equal : Self -> Self -> bool;
+ signature different : Self -> Self -> bool;
+ signature print_object : Self -> string ;
+ property equal_reflexive : all obj:Self, equal(obj, obj);
+ property equal_symetric : all obj1 obj2: Self, equal(obj1, obj2) -> equal(obj2, obj1) ;
+ property equal_transitive : all obj1 obj2 obj3: Self, 
+                            (equal(obj1, obj2) -> equal(obj2, obj3))-> equal(obj1, obj3);
+ property equal_is_not_different : all obj1 obj2:Self, 
+  equal(obj1, obj2) ->  ~(different(obj1, obj2)) ;
+ property distance_specification : all obj1 obj2:Self,
+                                   equal(obj1, obj2) -> (distance(obj1, obj2) = 0.00) ;
+ end;;
+
+
+
+species Controller (Obj is Object_2D) =
+ signature controller_obj: Self -> Obj;
+ signature group: Self -> list(Obj);
+ signature max_distance: Self -> float;
+ signature create_controller: Obj -> float -> Self;
+ signature equal: Self -> Self -> bool;
+ signature add_object_to_controller: Obj -> Self -> Self;
+ signature remove_object_from_controller: Obj -> Self -> Self;
+ signature belongs: Obj -> list(Obj) -> bool;
+ signature move_object: Obj -> float -> float -> Self -> Obj;
+ property  add_object_specification : all c:Self, all obj:Obj,
+  belongs(obj, group(add_object_to_controller(obj, c)) );
+ property  belongs_specification : all c:Self, all obj:Obj,
+ belongs(obj, group(c)) -> Obj!distance(obj, controller_obj(c)) <= max_distance(c);
+ property move_specification : all obj:Obj, all v1 v2:float, all c:Self,
+ belongs(obj, group(c)) -> Obj!distance(move_object(obj, v1, v2, c), controller_obj(c)) 
+                           <= max_distance(c);
+ end;; 
+
+ 
+species Factual_Objet_2D = inherit Object_2D;
+ representation =  float * float;
+ let get_abscissa(obj) = fst(obj);
+ let get_ordinate(obj) = snd(obj);
+ let new_object(abs:float, ord:float):Self = (abs , ord);
+ let move_object(obj, d_abscissa, d_ordinate):Self = ( get_abscissa(obj) + d_abscissa, 
+                                                  get_ordinate(obj) + d_ordinate ); 
+ let distance (obj1:Self,  obj2: Self):float =  
+   #sqrt(  ( get_abscissa(obj1) - get_abscissa(obj2) ) * ( get_abscissa(obj1) - get_abscissa(obj2) ) +  
+           ( get_ordinate(obj1) - get_ordinate(obj2) ) * ( get_ordinate(obj1) - get_ordinate(obj2) ) ); 
+ let equal (obj1:Self,  obj2: Self):bool = (get_abscissa(obj1) = get_abscissa(obj2)) &&
+                                       (get_ordinate(obj1) = get_ordinate(obj2)) ;
+ let different (obj1:Self,  obj2: Self):bool = ~~(equal(obj1, obj2)); 
+ let print_object (obj:Self):string = (" Abscissa = " ^   
+                   string_of_float(get_abscissa(obj)) ^  " Ordinate = " ^  
+                   string_of_float(get_ordinate(obj))); 
+ proof of  equal_reflexive = by definition of equal;
+ proof of  equal_symetric = by definition of equal; 
+ proof of equal_transitive = by definition of equal property equal_symetric;
+ proof of equal_is_not_different = by definition of different;
+ proof of distance_specification = assumed ;(*by definition of distance;*)
+ end;;  
+
+species Factual_Controller(Obj is Object_2D) = inherit Controller(Obj);
+ representation = (Obj * list(Obj)) * float;
+ let controller_obj(c:Self):Obj = fst(fst(c));
+ let group(c:Self):list(Obj) = snd(fst(c));
+ let max_distance(c:Self):float = snd(c);
+ let equal (c1:Self, c2:Self): bool =  controller_obj(c1) = controller_obj(c2) &&
+                                   (group(c1) = group(c2)) &&
+                                   max_distance(c1) = max_distance(c2) ;  
+ let emptyGroup:list(Obj)=[];
+ let create_controller (obj:Obj, max_distance:float):Self = 
+     ((obj, emptyGroup), max_distance);      
+ let add_object_to_controller(obj:Obj, c: Self):Self = 
+     if (Obj!distance(obj, controller_obj(c)) <= max_distance(c))  
+     then ((obj, group(c)), max_distance(c)) 
+     else c; 
+ let rec delete_object (obj:Obj, g:list(Obj)):list(Obj) = 
+       match g with
+       | [] -> []
+       | q::r ->   if (Obj!equal(q, obj)) then r 
+                   else q::(delete_object(obj, r))                  
+       termination proof = structural g ;
+ let remove_object_from_controller (obj:Obj, c: Self):Self = 
+     (  (controller_obj(c), delete_object(obj,group(c)) ),  max_distance(c));
+    let rec belongs (obj:Obj, l:list(Obj)):bool = match l with
+   | [] -> false
+   | q::r ->   if (Obj!equal(q, obj)) then true else belongs(obj, r) 
+   termination proof = structural l ;
+ let move_object(obj:Obj, d_abscissa:float, d_ordinate:float, c:Self):Obj = 
+    let obj_1 = Obj!new_object( Obj!get_abscissa(obj) + d_abscissa, 
+                                Obj!get_ordinate(obj) + d_ordinate  ) in
+    if Obj!distance(obj_1, controller_obj(c)) <= max_distance(c)
+    then obj_1
+    else obj;
+ proof of add_object_specification = assumed;
+ proof of belongs_specification = assumed ;
+ proof of move_specification = by definition of move_object property belongs_specification;
+ end;; 
+
+
+ species Object_3D = inherit Object_2D;
+ representation = (float * float) * float;
+ let get_abscissa(obj:Self):float = fst(fst(obj));
+ let get_ordinate(obj:Self):float = snd(fst(obj));
+ let get_altitude(obj:Self):float = snd(obj);
+ let new_object3D(abs:float, ord:float, alt: float):Self = ((abs , ord), alt);
+ let move_object3D(obj, d_abscissa, d_ordinate, d_altitude):Self = 
+          ( ( get_abscissa(obj) + d_abscissa , 
+              get_ordinate(obj) + d_ordinate ), 
+              get_altitude(obj) + d_altitude    ); 
+ let distance (obj1:Self,  obj2: Self):float =  
+   #sqrt(  ( get_abscissa(obj1) - get_abscissa(obj2) ) * ( get_abscissa(obj1) - get_abscissa(obj2) ) +  
+           ( get_ordinate(obj1) - get_ordinate(obj2) ) * ( get_ordinate(obj1) - get_ordinate(obj2) ) + 
+           ( get_altitude(obj1) - get_altitude(obj2 ) )  * ( get_altitude(obj1) - get_altitude(obj2)  ) );  
+ let equal (obj1:Self,  obj2: Self):bool = (get_abscissa(obj1) = get_abscissa(obj2)) &&
+                                           (get_ordinate(obj1) = get_ordinate(obj2)) &&
+                                           (get_altitude(obj1) = get_altitude(obj2)) ;
+ let print_object (obj:Self):string = (" Abscissa = " ^ string_of_float(get_abscissa(obj)) ^ 
+                                       " Ordinate = " ^ string_of_float(get_ordinate(obj)) ^ 
+                                       " Altitude = " ^ string_of_float(get_altitude(obj)) ); 
+  let different (obj1:Self,  obj2: Self):bool = ~~(equal(obj1, obj2)); 
+  proof of  equal_reflexive = by definition of equal;
+  proof of  equal_symetric = by definition of equal; 
+  proof of equal_transitive = by definition of equal property equal_symetric;
+  proof of equal_is_not_different = by definition of different;
+ end;;
